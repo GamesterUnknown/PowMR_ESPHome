@@ -12,8 +12,8 @@
 - 4509 : Battery Discharge Current `measurement`
 - 4510 : Load Voltage `measurement`
 - 4511 : Load Frequency `measurement`
-- 4512 : Load Power `measurement`
-- 4513 : Load VA `measurement`
+- 4512 : Load VA Power `measurement`
+- 4513 : Load Power `measurement`
 - 4514 : Load Percent `measurement`
 - 4515 : Load Percent `measurement`
 - 4516 : Binary flags `binary_flags`
