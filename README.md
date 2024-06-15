@@ -57,14 +57,6 @@ In version 1.2, a [PZEM](https://esphome.io/components/sensor/pzem004t) module w
 For easy integration into Home Assistant, you can use the examples of inverter cards. 
 The following custom plugins are required: [sunsynk-power-flow-card](https://github.com/slipx06/sunsynk-power-flow-card), [stack-in-card](https://github.com/custom-cards/stack-in-card), [tabbed-card](https://github.com/kinghat/tabbed-card), [canary](https://github.com/jcwillox/lovelace-canary).
 
-<table border="0">
-<tr>
-<td valign="top"><img alt="Inverter card page 1 screenshot" src="examples/inverter-card-screenshots/inverter-card-page1.png" width="250" height="auto"></td>
-<td valign="top"><img alt="Inverter card page 2 screenshot" src="examples/inverter-card-screenshots/inverter-card-page2.png" width="250" height="auto"></td>
-<td valign="top"><img alt="Inverter card page 3 screenshot" src="examples/inverter-card-screenshots/inverter-card-page3.png" width="250" height="auto"></td>
-</tr>
-</table>
-
 ## Optimize modbus communications
 ESPHome reads sequential Modbus registers in one batch. If you have gaps in register addresses, you need to use the `register_count` parameter to skip N registers and continue the batch.
 [Details in ESPHome docs](https://esphome.io/components/sensor/modbus_controller#modbus-register-count).
