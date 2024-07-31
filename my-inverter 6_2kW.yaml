@@ -12,9 +12,10 @@ substitutions:
   pzem_rx_pin: GPIO3
   pzem_voltage_offset: "1"
   pzem_current_offset: "0.04"
-  update_interval: 30s # Minimum 10s recommended to avoid duplicate command errors
-  select_skip_updates: "2"
-  pzem_update_interval: 6s # Needs to be 1/5 of update interval because of smoothing filter on pzem readings
+  update_interval: 10s # Minimum 10s recommended to avoid duplicate command errors
+  select_skip_updates: "6"
+  read_skip_updates: "6"
+  pzem_update_interval: 10s # Needs to be 1/5 of update interval because of smoothing filter on pzem readings
 
 esphome: 
   name: "${device_name}"
@@ -33,11 +34,12 @@ esp32:
 
 # Enable Home Assistant API
 api:
-  encryption:   
-    key: !secret api_encryption_key
+  encryption:
+    key: "EuIuqv0Dwsv5GEe6j6q8PgFq4ZYC5CElcQN3gOTPYjI="
 
 ota:
-  password: !secret ota_password
+ - platform: esphome
+   password: !secret ota_password
 
 wifi:
   ssid: !secret wifi_ssid
@@ -52,7 +54,7 @@ captive_portal:
 
 packages:
   # You can replace next 2 lines with your common configs for all devices
-  common_system: !include includes/common_system.yaml
+ # common_system: !include includes/common_system.yaml
   common_sensors: !include includes/common_sensors.yaml
 
 
@@ -83,6 +85,18 @@ web_server:
 
   
 uart:
+  - id: uart_pzem
+    baud_rate: 9600
+    tx_pin: ${pzem_tx_pin}
+    rx_pin: ${pzem_rx_pin}
+    debug:
+     direction: BOTH
+     dummy_receiver: false
+     after:
+      delimiter: "\n"
+     sequence:
+      - lambda: UARTDebug::log_string(direction, bytes);
+
   - id: uart_inverter
     baud_rate: 2400
     tx_pin: ${inverter_tx_pin}
@@ -94,20 +108,18 @@ uart:
       delimiter: "\n"
      sequence:
       - lambda: UARTDebug::log_string(direction, bytes);
-  - id: uart_pzem
-    baud_rate: 9600
-    tx_pin: ${pzem_tx_pin}
-    rx_pin: ${pzem_rx_pin}
-#    debug:
-#      direction: BOTH
-#      dummy_receiver: false
+ 
+
 
 modbus:
   - id: modbus_inverter
     uart_id: uart_inverter
-    send_wait_time: 250ms
+    send_wait_time: 500ms
+  
   - id: modbus_pzem
     uart_id: uart_pzem
+    send_wait_time: 250ms
+
 
 modbus_controller:
   - id: smg_inverter
@@ -115,11 +127,12 @@ modbus_controller:
     modbus_id: modbus_inverter
     setup_priority: -10
     offline_skip_updates: 100
-    command_throttle: 1s
+    #command_throttle: 1s
     update_interval: ${update_interval}
+  
   - id: pzem
     # The current device address.
-    address: 0x1
+    address: 0x02
     # The special address 0xF8 is a broadcast address accepted by any pzem device,
     # so if you use this address, make sure there is only one pzem device connected
     # to the uart bus.
@@ -127,66 +140,67 @@ modbus_controller:
     modbus_id: modbus_pzem
     command_throttle: 0ms
     setup_priority: -10
+    offline_skip_updates: 100
     update_interval: ${pzem_update_interval}
 
 sensor:
   - platform: pzemac
     modbus_id: modbus_pzem
     voltage:
-      name: "Grid PZEM Voltage"
+      name: "Grid Voltage PZEM"
       id: pzem_grid_voltage
-      internal: true
-      filters:
-        - &mafilter quantile:
-            window_size: 5
-            send_every: 1
-            send_first_at: 1
-            quantile: .9
-        - offset: ${pzem_voltage_offset}
+      #internal: true
+      #filters:
+      #  - &mafilter quantile:
+      #      window_size: 5
+      #      send_every: 1
+      #      send_first_at: 1
+      #      quantile: .9
+      #  - offset: ${pzem_voltage_offset}
     current:
-      name: "Grid Current"
+      name: "Grid Current PZEM"
       id: pzem_grid_current
-      filters:
-        - *mafilter
-        - offset: ${pzem_current_offset}
+      #filters:
+      #  - *mafilter
+      #  - offset: ${pzem_current_offset}
     power:
-      name: "Grid Power"
+      name: "Grid Power PZEM"
       id: pzem_grid_power
-      filters:
-        - *mafilter
+      #filters:
+      #  - *mafilter
     power_factor:
-      name: "Grid Power Factor"
+      name: "Grid Power Factor PZEM"
       id: pzem_grid_power_factor
-      filters:
-        - *mafilter
+      #filters:
+      #  - *mafilter
     energy:
-      name: "Grid Energy"
+      name: "Grid Energy PZEM"
       id: pzem_grid_energy
-      filters:
-        - *mafilter
+      #filters:
+      #  - *mafilter
 
   - platform: template
-    name: "Grid Power VA"
+    name: "Grid Power VA PZEM"
     unit_of_measurement: "W"
     device_class: power
     state_class: measurement
     accuracy_decimals: 0
-    update_interval: ${update_interval}
+    update_interval: ${pzem_update_interval}
     lambda: |-
       return id(pzem_grid_current).state * id(pzem_grid_voltage).state;
 
   - platform: template
-    name: "Grid Power VA*PF"
+    name: "Grid Power VA*PF PZEM"
     unit_of_measurement: "W"
     device_class: power
     state_class: measurement
     accuracy_decimals: 0
-    update_interval: ${update_interval}
+    update_interval: ${pzem_update_interval}
     lambda: |-
       return id(pzem_grid_current).state * id(pzem_grid_voltage).state * id(pzem_grid_power_factor).state;
      
   ###################################
-  # Read first group (44 registers) #
+  # Read first group (14 registers) #
   ###################################
 
   - platform: modbus_controller
@@ -194,6 +208,8 @@ sensor:
     name: "Grid Voltage"
     address: 4502
     register_type: holding
+    register_count: 14
+    force_new_range: true
     value_type: U_WORD
     unit_of_measurement: "V"
     device_class: voltage
@@ -207,7 +223,7 @@ sensor:
     filters:
       - multiply: 0.1
       - offset: ${inverter_voltage_offset}
-      - heartbeat: 10s
+     # - heartbeat: 10s
 
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
@@ -267,8 +283,8 @@ sensor:
         return 0;
       }
       return id(PV_Power).state / id(PV_Voltage).state;
-    filters:
-      - heartbeat: 10s
+   # filters:
+   #   - heartbeat: 10s
 
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
@@ -337,8 +353,8 @@ sensor:
     update_interval: ${update_interval}
     lambda: |-
       return id(battery_charge_current).state - id(battery_discharge_current).state;
-    filters:
-      - heartbeat: 10s
+   # filters:
+   #   - heartbeat: 10s
 
   - platform: template
     name: "Battery Power"
@@ -465,10 +481,18 @@ sensor:
     lambda: |-
       return swapBytes(x);
 
+  # ####################################
+  # # Read second group (19 registers) #
+  # ####################################
+
+
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
     name: "Unknown4516"
     address: 4516
+    skip_updates: ${read_skip_updates}
+    register_count: 19
+    force_new_range: true
     register_type: holding
     value_type: U_WORD
   #  unit_of_measurement: "%"
@@ -736,10 +760,17 @@ sensor:
     lambda: |-
       return swapBytes(x);
 
+  # ####################################
+  # # Read third group (19 registers)  #
+  # ####################################
+
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
     name: "Unknown4539"
     address: 4539
+    skip_updates: ${read_skip_updates}
+    force_new_range: true
+    register_count: 14
     register_type: holding
     value_type: U_WORD
   #  unit_of_measurement: "%"
@@ -1042,51 +1073,95 @@ binary_sensor:
     register_type: holding
     bitmask: 0x1
 
-select:
 
+  # ####################################
+  # # Read config registers one by one #
+  # ####################################
+
+select:
+#Menu6 -5002
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
-    name: "Buzzer Alarm"
+    name: "Menu 18: Buzzer Alarm"
     optimistic: true
+    force_new_range: true
+    register_count: 1
     skip_updates: ${select_skip_updates}
     entity_category: config
     address: 5002
     value_type: U_WORD
     optionsmap:
-      "Off": 0
-      "On": 1
-
+      "OFF": 0
+      "ON": 1
+#Menu6 -5005
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
-    name: "Beep On Primary Source Fail"
+    name: "Menu 06: Auto restart when overload"
     optimistic: true
+    force_new_range: true
+    register_count: 1
+    skip_updates: ${select_skip_updates}
+    entity_category: config
+    address: 5005
+    value_type: U_WORD
+    optionsmap:
+      "OFF": 0
+      "ON": 1
+
+#Menu7 -5006
+  - platform: modbus_controller
+    modbus_controller_id: smg_inverter
+    name: "Menu 07: Auto restart when overheat"
+    optimistic: true
+    force_new_range: true
+    register_count: 1
+    skip_updates: ${select_skip_updates}
+    entity_category: config
+    address: 5006
+    value_type: U_WORD
+    optionsmap:
+      "OFF": 0
+      "ON": 1
+
+#menu22-5007
+  - platform: modbus_controller
+    modbus_controller_id: smg_inverter
+    name: "Menu 22: Beep On Primary Source Fail"
+    optimistic: true
+    force_new_range: true
+    register_count: 1
     skip_updates: ${select_skip_updates}
     entity_category: config
     address: 5007
     value_type: U_WORD
     optionsmap:
-      "Off": 0
-      "On": 1
+      "OFF": 0
+      "ON": 1
 
+ #menu23 - 5009
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
-    name: "Overload Bypass"
+    name: "Menu 23: Overload Bypass"
     optimistic: true
+    force_new_range: true
+    register_count: 1
     skip_updates: ${select_skip_updates}
     entity_category: config
     address: 5009
     value_type: U_WORD
     optionsmap:
-      "Off": 0
-      "On": 1
+      "OFF": 0
+      "ON": 1
 
+#menu16 -5017
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
     id: charger_source_priority_select
-    name: "Charger Source Priority"
+    name: "Menu 16: Charger Source Priority"
     optimistic: true
-    skip_updates: ${select_skip_updates}
     force_new_range: true
+    register_count: 1
+    skip_updates: ${select_skip_updates}
     entity_category: config
     address: 5017
     value_type: U_WORD
@@ -1095,12 +1170,15 @@ select:
       "Solar first": 1
       "Solar and Utility": 2
       "Only Solar": 3
-
+      
+#Menu1 -5018
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
     id: output_source_priority_select
-    name: "Output Source Priority"
+    name: "Menu 01: Output Source Priority"
     optimistic: true
+    force_new_range: true
+    register_count: 1
     skip_updates: ${select_skip_updates}
     entity_category: config
     address: 5018
@@ -1110,10 +1188,51 @@ select:
       "Solar first (SUB)": 1
       "SBU priority": 2
 
+
+#Menu3-5019
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
-    name: "Max Total Charge Current"
+    name: "Menu 03: AC Input Voltage"
     optimistic: true
+    force_new_range: true
+    register_count: 1
+    skip_updates: ${select_skip_updates}
+    entity_category: config
+    address: 5019
+    value_type: U_WORD
+    optionsmap:
+      "90-280VAC": 0
+      "170-280VAC": 1
+#Menu4 -?    
+#Menu5 -5020
+  - platform: modbus_controller
+    modbus_controller_id: smg_inverter
+    name: "Menu 05: Battery Type"
+    optimistic: true
+    force_new_range: true
+    register_count: 1
+    skip_updates: ${select_skip_updates}
+    entity_category: config
+    address: 5020
+    value_type: U_WORD
+    optionsmap:
+      "AGM": 0
+      "Flooded": 1
+      "User Defined": 2     
+      "Litium": 3 
+
+
+
+#Menu8 -?
+#Menu9 -5021 Output frequency  0 - 50hz, 1 - 60hz
+
+#Menu2-5022
+  - platform: modbus_controller
+    modbus_controller_id: smg_inverter
+    name: "Menu 02: Max Total Charge Current"
+    optimistic: true
+    force_new_range: true
+    register_count: 1
     skip_updates: ${select_skip_updates}
     entity_category: config
     address: 5022
@@ -1128,10 +1247,15 @@ select:
       "70": 70
       "80": 80
 
+#Menu10 -5023 Output voltage (one of 220, 230, 240)
+
+#Menu11 - 5024
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
-    name: "Utility Charge Current"
+    name: "Menu 11: Max Utility Charge Current"
     optimistic: true
+    force_new_range: true
+    register_count: 1
     skip_updates: ${select_skip_updates}
     entity_category: config
     address: 5024
@@ -1143,3 +1267,59 @@ select:
       "40": 40
       "50": 50
       "60": 60
+
+#Menu12 - 5025
+  - platform: modbus_controller
+    modbus_controller_id: smg_inverter
+    name: "Menu 12: Back To Utility Source Voltage"
+    optimistic: true
+    force_new_range: true
+    register_count: 1
+    skip_updates: ${select_skip_updates}
+    entity_category: config
+    address: 5025
+    value_type: U_WORD
+    optionsmap:
+      "42": 420
+      "43": 430
+      "44": 440
+      "45": 450
+      "46": 460
+      "47": 470
+      "48": 480
+      "49": 490
+      "50": 500
+      "51": 510
+
+#Menu13 - 5026
+  - platform: modbus_controller
+    modbus_controller_id: smg_inverter
+    name: "Menu 13: Back To Battery Source Voltage"
+    optimistic: true
+    force_new_range: true
+    register_count: 1
+    skip_updates: ${select_skip_updates}
+    entity_category: config
+    address: 5026
+    value_type: U_WORD
+    optionsmap:
+      "FULL": 0
+      "48": 480
+      "49": 490
+      "50": 500
+      "51": 510
+      "52": 520
+      "53": 530
+      "54": 540
+      "55": 550
+      "56": 560    
+      "57": 570
+      "58": 580
+
+  #Menu26 - 5027  Bulk charging voltage
+  #Menu27 - 5028 Floating charging voltage
+  #Menu28 - 5029 Low DC cut-off voltage
+  #Menu29 - 5030 Battery equalization voltage
+  #Menu33 - 5031 Battery equalized time
+  #Menu34 - 5032 Battery equalized timeout
+  #Menu35 - 5033 Equalization interval
