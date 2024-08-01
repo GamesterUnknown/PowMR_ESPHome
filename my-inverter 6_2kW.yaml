@@ -35,7 +35,7 @@ esp32:
 # Enable Home Assistant API
 api:
   encryption:
-    key: "EuIuqv0Dwsv5GEe6j6q8PgFq4ZYC5CElcQN3gOTPYjI="
+    key: !secret api_encryption_key
 
 ota:
  - platform: esphome
