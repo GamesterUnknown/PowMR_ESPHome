@@ -1079,7 +1079,7 @@ binary_sensor:
   # ####################################
 
 select:
-#Menu6 -5002
+#Menu18 -5002
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
     name: "Menu 18: Buzzer Alarm"
