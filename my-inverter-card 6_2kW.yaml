@@ -2,10 +2,10 @@ type: custom:sunsynk-power-flow-card
 cardstyle: full
 show_solar: true
 battery:
-  energy: 5000
+  energy: 14000
   max_power: 5000
   shutdown_soc: 20
-  colour: '#9A64A0'
+  colour: "#9A64A0"
   show_daily: true
   invert_power: true
   show_absolute: false
@@ -34,20 +34,20 @@ load:
   show_absolute_aux: false
   aux_name: Generator
   aux_type: gen
-  aux_colour: '#5490c2'
+  aux_colour: "#5490c2"
   aux_off_colour: brown
   aux_loads: 0
-  aux_load1_icon: ''
-  aux_load2_icon: ''
+  aux_load1_icon: ""
+  aux_load2_icon: ""
   animation_speed: 4
   essential_name: My Dacha
   additional_loads: 2
   load1_name: Бойлер Санвузол
   load2_name: Бойлер Кухня
   load3_name: Lights
-  load2_icon: ''
-  load3_icon: ''
-  load4_icon: ''
+  load2_icon: ""
+  load3_icon: ""
+  load4_icon: ""
   auto_scale: true
   dynamic_icon: true
   dynamic_colour: true
@@ -56,10 +56,10 @@ load:
 grid:
   grid_name: Utility Power
   max_power: 6200
-  colour: '#FF2400'
+  colour: "#FF2400"
   export_colour: green
   no_grid_colour: null
-  grid_off_colour: '#e7d59f'
+  grid_off_colour: "#e7d59f"
   show_daily_buy: true
   show_daily_sell: false
   show_nonessential: true
@@ -132,3 +132,4 @@ inverter:
   auto_scale: true
   model: powmr
   three_phase: false
+
