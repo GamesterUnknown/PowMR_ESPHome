@@ -12,8 +12,9 @@ substitutions:
 # pzem_rx_pin: GPIO3
 #  pzem_voltage_offset: "1"
 #  pzem_current_offset: "0.04"
-  update_interval: 30s # Minimum 10s recommended to avoid duplicate command errors
-  select_skip_updates: "2"
+  update_interval: 10s # Minimum 10s recommended to avoid duplicate command errors
+  select_skip_updates: "6"
+  read_skip_updates: "6"
  # pzem_update_interval: 6s # Needs to be 1/5 of update interval because of smoothing filter on pzem readings
 
 esphome: 
@@ -24,7 +25,7 @@ esphome:
     - "helpers"
   project:
     name: "esphome.powmr-hybrid-inverter"
-    version: 1.3.4
+    version: 1.3.3
 
 esp32:
   board: esp32dev
@@ -35,11 +36,10 @@ esp32:
 api:
   encryption:
     key: !secret api_encryption_key
- 
-
+    
 ota:
- - platform: esphome
-   password: !secret ota_password
+- platform: esphome
+  password: !secret ota_password
 
 wifi:
   ssid: !secret wifi_ssid
@@ -73,7 +73,7 @@ packages:
 logger:
   id: uart_logger
   baud_rate: 0
-  level: DEBUG #VERBOSE
+  level: DEBUG #VERBOSE #DEBUG
   # logs:
   #   component: ERROR # Fix for issue #4717 "Component xxxxxx took a long time for an operation"
 
@@ -146,21 +146,19 @@ sensor:
     name: "Grid Voltage"
     address: 4502
     register_type: holding
-    register_count: 14
     force_new_range: true
+    register_count: 14
+    skip_updates: 0
     value_type: U_WORD
     unit_of_measurement: "V"
     device_class: voltage
     state_class: measurement
     accuracy_decimals: 1
     lambda: |-
-      if (!id(grid_active).state) {
-        return 0.0;
-      }
       return swapBytes(x);
     filters:
       - multiply: 0.1
-      - offset: ${inverter_voltage_offset}
+#      - offset: ${inverter_voltage_offset}
 #      - heartbeat: 10s
 
   - platform: modbus_controller
@@ -380,7 +378,6 @@ sensor:
     modbus_controller_id: smg_inverter
     name: "Load Percent"
     address: 4514
-    #register_count: 21
     register_type: holding
     value_type: U_WORD
     unit_of_measurement: "%"
@@ -402,7 +399,7 @@ sensor:
       return swapBytes(x);
 
   # ####################################
-  # # Read second group (19 registers) #
+  # # Read second group (20 registers) #
   # ####################################
 
 
@@ -410,8 +407,8 @@ sensor:
     modbus_controller_id: smg_inverter
     name: "Unknown4516"
     address: 4516
-    register_count: 19
     force_new_range: true
+    skip_updates: ${read_skip_updates}
     register_type: holding
     value_type: U_WORD
   #  unit_of_measurement: "%"
@@ -623,11 +620,23 @@ sensor:
     state_class: measurement
     lambda: |-
       return swapBytes(x);
-  
+
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
     name: "Unknown4534"
     address: 4534
+    register_type: holding
+    value_type: U_WORD
+  #  unit_of_measurement: "%"
+    device_class: power_factor
+    state_class: measurement
+    lambda: |-
+      return swapBytes(x);
+
+  - platform: modbus_controller
+    modbus_controller_id: smg_inverter
+    name: "Unknown4535"
+    address: 4535
     register_type: holding
     value_type: U_WORD
   #  unit_of_measurement: "%"
@@ -678,11 +687,19 @@ sensor:
 #    state_class: measurement
 #    lambda: |-
 #      return swapBytes(x);
+  
+  # #################################### 
+  # # Read third group (22 registers)  #
+  # ####################################
+
 
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
     name: "Charger Source Priority"
     address: 4536
+  #  force_new_range: true
+  #  register_count: 22
+    skip_updates: ${read_skip_updates}
     register_type: holding
     value_type: U_WORD
   #  unit_of_measurement: "%"
@@ -690,6 +707,7 @@ sensor:
     state_class: measurement
     lambda: |-
       return swapBytes(x);
+   
 
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
@@ -714,17 +732,11 @@ sensor:
     state_class: measurement
     lambda: |-
       return swapBytes(x);
-      
-  # ####################################
-  # # Read third group (19 registers)  #
-  # ####################################
 
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
     name: "Unknown4539"
     address: 4539
-    force_new_range: true
-    register_count: 14
     register_type: holding
     value_type: U_WORD
   #  unit_of_measurement: "%"
@@ -908,6 +920,27 @@ sensor:
   # 4554 -> binary
 
   # 4555 -> text
+  - platform: modbus_controller
+    modbus_controller_id: smg_inverter
+    name: "Unknown4553"
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    address: 4553
+    register_type: holding
+    value_type: U_WORD
+    lambda: |-
+      return swapBytes(x);
+
+  - platform: modbus_controller
+    modbus_controller_id: smg_inverter
+    name: "Unknown4554"
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    address: 4554
+    register_type: holding
+    value_type: U_WORD
+    lambda: |-
+      return swapBytes(x);
 
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
@@ -919,7 +952,30 @@ sensor:
     value_type: U_WORD
     lambda: |-
       return swapBytes(x);
+   
+  - platform: modbus_controller
+    modbus_controller_id: smg_inverter
+    name: "Temperature"
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    address: 4556
+    register_type: holding
+    unit_of_measurement: "°C"
+    value_type: U_WORD
+    lambda: |-
+      return swapBytes(x);
 
+  - platform: modbus_controller
+    modbus_controller_id: smg_inverter
+    name: "Temperature2"
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    address: 4557
+    register_type: holding
+    unit_of_measurement: "°C"
+    value_type: U_WORD
+    lambda: |-
+      return swapBytes(x);
 #text_sensor:
 #  - platform: modbus_controller
 #    modbus_controller_id: smg_inverter
@@ -1046,6 +1102,34 @@ binary_sensor:
     address: 4535
     register_type: holding
     bitmask: 0x8000
+  
+  - platform: modbus_controller
+    modbus_controller_id: smg_inverter
+    name: "On Battery 4553 0x100"
+    address: 4553
+    register_type: holding
+    bitmask: 0x100
+
+  - platform: modbus_controller
+    modbus_controller_id: smg_inverter
+    name: "Grid Active 4553 0x200"
+    address: 4553
+    register_type: holding
+    bitmask: 0x200
+
+  - platform: modbus_controller
+    modbus_controller_id: smg_inverter
+    name: "Load Off"
+    address: 4553
+    register_type: holding
+    bitmask: 0x1000
+
+  - platform: modbus_controller
+    modbus_controller_id: smg_inverter
+    name: "Grid Active 4553 0x2000"
+    address: 4553
+    register_type: holding
+    bitmask: 0x2000
 
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
@@ -1056,19 +1140,26 @@ binary_sensor:
 
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
-    name: "Grid Active"
-    id: grid_active
-    address: 4554
-    register_type: holding
-    bitmask: 0x8000
-
-  - platform: modbus_controller
-    modbus_controller_id: smg_inverter
     name: "On Battery"
     address: 4554
     register_type: holding
     bitmask: 0x1
 
+  - platform: modbus_controller
+    modbus_controller_id: smg_inverter
+    name: "Grid Active 4554 0x100"
+    id: grid_active2
+    address: 4554
+    register_type: holding
+    bitmask: 0x100
+
+  - platform: modbus_controller
+    modbus_controller_id: smg_inverter
+    name: "Grid Active"
+    id: grid_active
+    address: 4554
+    register_type: holding
+    bitmask: 0x8000
 
   # ####################################
   # # Read config registers one by one #
@@ -1076,8 +1167,9 @@ binary_sensor:
 
 
 select:
-#Menu18 -5002
+#Menu6 -5002
   - platform: modbus_controller
+    modbus_controller_id: smg_inverter
     name: "Menu 18: Buzzer Alarm"
     optimistic: true
     force_new_range: true
@@ -1091,6 +1183,7 @@ select:
       "ON": 1
 #Menu6 -5005
   - platform: modbus_controller
+    modbus_controller_id: smg_inverter
     name: "Menu 06: Auto restart when overload"
     optimistic: true
     force_new_range: true
@@ -1105,6 +1198,7 @@ select:
 
 #Menu7 -5006
   - platform: modbus_controller
+    modbus_controller_id: smg_inverter
     name: "Menu 07: Auto restart when overheat"
     optimistic: true
     force_new_range: true
@@ -1119,6 +1213,7 @@ select:
 
 #menu22-5007
   - platform: modbus_controller
+    modbus_controller_id: smg_inverter
     name: "Menu 22: Beep On Primary Source Fail"
     optimistic: true
     force_new_range: true
@@ -1133,6 +1228,7 @@ select:
 
  #menu23 - 5009
   - platform: modbus_controller
+    modbus_controller_id: smg_inverter
     name: "Menu 23: Overload Bypass"
     optimistic: true
     force_new_range: true
@@ -1147,6 +1243,7 @@ select:
 
 #menu16 -5017
   - platform: modbus_controller
+    modbus_controller_id: smg_inverter
     id: charger_source_priority_select
     name: "Menu 16: Charger Source Priority"
     optimistic: true
@@ -1164,6 +1261,7 @@ select:
       
 #Menu1 -5018
   - platform: modbus_controller
+    modbus_controller_id: smg_inverter
     id: output_source_priority_select
     name: "Menu 01: Output Source Priority"
     optimistic: true
@@ -1181,6 +1279,7 @@ select:
 
 #Menu3-5019
   - platform: modbus_controller
+    modbus_controller_id: smg_inverter
     name: "Menu 03: AC Input Voltage"
     optimistic: true
     force_new_range: true
@@ -1195,6 +1294,7 @@ select:
 #Menu4 -?    
 #Menu5 -5020
   - platform: modbus_controller
+    modbus_controller_id: smg_inverter
     name: "Menu 05: Battery Type"
     optimistic: true
     force_new_range: true
@@ -1216,6 +1316,7 @@ select:
 
 #Menu2-5022
   - platform: modbus_controller
+    modbus_controller_id: smg_inverter
     name: "Menu 02: Max Total Charge Current"
     optimistic: true
     force_new_range: true
@@ -1238,6 +1339,7 @@ select:
 
 #Menu11 - 5024
   - platform: modbus_controller
+    modbus_controller_id: smg_inverter
     name: "Menu 11: Max Utility Charge Current"
     optimistic: true
     force_new_range: true
@@ -1256,6 +1358,7 @@ select:
 
 #Menu12 - 5025
   - platform: modbus_controller
+    modbus_controller_id: smg_inverter
     name: "Menu 12: Back To Utility Source Voltage"
     optimistic: true
     force_new_range: true
@@ -1278,6 +1381,7 @@ select:
 
 #Menu13 - 5026
   - platform: modbus_controller
+    modbus_controller_id: smg_inverter
     name: "Menu 13: Back To Battery Source Voltage"
     optimistic: true
     force_new_range: true
