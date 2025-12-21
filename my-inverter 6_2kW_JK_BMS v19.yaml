@@ -18,7 +18,7 @@ substitutions:
 
   jk_name: BMS
   external_components_source: github://syssi/esphome-jk-bms@main
-  mac_address: A4:C1:38:01:06:47
+  mac_address: AA:BB:CC:DD:EE:FF
   # Please use "JK02_24S" if you own a old JK-BMS < hardware version 11.0 (hardware version >= 6.0 and < 11.0)
   # Please use "JK02_32S" if you own a new JK-BMS >= hardware version 11.0 (f.e. JK-B2A8S20P hw 11.XW, sw 11.26)
   # Please use "JK04" if you have some old JK-BMS <= hardware version 3.0 (f.e. JK-B2A16S hw 3.0, sw. 3.3.0)
@@ -38,7 +38,7 @@ esphome:
     - "helpers"
   project:
     name: "esphome.powmr-hybrid-inverter"
-    version: 1.3.3
+    version: 1.3.5
 
 esp32:
   board: esp32dev
@@ -48,7 +48,7 @@ esp32:
 # Enable Home Assistant API
 api:
   encryption:
-    key: "EuIuqv0Dwsv5GEe6j6q8PgFq4ZYC5CElcQN3gOTPYjI="
+    key: !secret api_encryption_key
 
 ota:
 - platform: esphome
