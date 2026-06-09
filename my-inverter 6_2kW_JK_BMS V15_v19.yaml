@@ -7,28 +7,33 @@ substitutions:
   inverter_rx_pin: GPIO16
   #GPIO4
   inverter_voltage_offset: "0"
+  update_interval: 2s # Minimum 10s recommended to avoid duplicate command errors
+  select_skip_updates: "6"
+  read_skip_updates: "6"
+
+# uncomment if use PZEM 004 module
 #  pzem_tx_pin: GPIO1
 #  pzem_rx_pin: GPIO3
 #  pzem_voltage_offset: "0"
 #  pzem_current_offset: "0"
-  update_interval: 2s # Minimum 10s recommended to avoid duplicate command errors
-  select_skip_updates: "6"
-  read_skip_updates: "6"
- # pzem_update_interval: 10s # Needs to be 1/5 of update interval because of smoothing filter on pzem readings
+#  pzem_update_interval: 10s # Needs to be 1/5 of update interval because of smoothing filter on pzem readings
+
 
   jk_name: BMS
-  external_components_source: https://github.com/syssi/esphome-jk-bms
+  #external_components_source: github://syssi/esphome-jk-bms@main
+  #external_components_source1: https://github.com/syssi/esphome-jk-bms
   # Please use "JK02_24S" if you own a old JK-BMS < hardware version 11.0 (hardware version >= 6.0 and < 11.0)
   # Please use "JK02_32S" if you own a new JK-BMS >= hardware version 11.0 (f.e. JK-B2A8S20P hw 11.XW, sw 11.26)
   # Please use "JK04" if you have some old JK-BMS <= hardware version 3.0 (f.e. JK-B2A16S hw 3.0, sw. 3.3.0)
   protocol_version: JK02_32S
 
-external_components:
-  - source:
-      type: git
-      url: ${external_components_source}
-      ref: main
-    refresh: 0s
+#external_components:
+#  - source:
+#      type: git
+#      url: ${external_components_source1}
+#      ref: main
+#  - source: ${external_components_source}
+#    refresh: 0s
 
 esphome: 
   name: "${device_name}"
@@ -38,7 +43,7 @@ esphome:
     - "helpers"
   project:
     name: "esphome.powmr-hybrid-inverter"
-    version: 1.4.0
+    version: 1.5.0
 
 esp32:
   board: esp32dev
@@ -62,6 +67,7 @@ wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
 
+
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
     ssid: "My-Inverter Fallback Hotspot"
@@ -73,17 +79,10 @@ packages:
   # You can replace next 2 lines with your common configs for all devices
  # common_system: !include includes/common_system.yaml
   common_sensors: !include includes/common_sensors.yaml
- # jk_bms_v19: github://syssi/esphome-jk-bms/esp32-ble-v19-example.yaml@main
+  jk_bms_v19: !include includes/esp32-ble-v19-example.yaml #BMS V19 sensors
+  #jk_bms_v15: !include includes/esp32-ble-v15-example.yaml #BMS V15 sensors
+  #pzem: !include includes/pzem.yaml # uncomment if use PZEM 004 module
 
-
-#For debug:
-#debug:
-#  update_interval: 10s
-
-#sensor:
-#  - platform: debug
-#    free:
-#      name: "Heap Free"
 
 logger:
   id: uart_logger
@@ -112,34 +111,8 @@ web_server:
  port: 80
  local: true
 #  ota: false
-
-
-esp32_ble_tracker:
-  scan_parameters:
-    active: false
-
-ble_client:
-  - mac_address: !secret bms_mac_address
-    id: client0
-
-jk_bms_ble:
-  - ble_client_id: client0
-    protocol_version: ${protocol_version}
-    throttle: 5s
-    id: bms0
   
 uart:
-#  - id: uart_pzem
-#    baud_rate: 9600
-#    tx_pin: ${pzem_tx_pin}
-#    rx_pin: ${pzem_rx_pin}
-#    debug:
-#     direction: BOTH
-#     dummy_receiver: false
-#     after:
-#      delimiter: "\n"
-#     sequence:
-#      - lambda: UARTDebug::log_string(direction, bytes);
 
   - id: uart_inverter
     baud_rate: 2400
@@ -158,9 +131,6 @@ modbus:
     uart_id: uart_inverter
     send_wait_time: 500ms
   
-#  - id: modbus_pzem
-#    uart_id: uart_pzem
-#    send_wait_time: 250ms
 
 
 modbus_controller:
@@ -172,141 +142,10 @@ modbus_controller:
     #command_throttle: 1s
     update_interval: ${update_interval}
   
-#  - id: pzem
-    # The current device address.
-#    address: 0x02
-    # The special address 0xF8 is a broadcast address accepted by any pzem device,
-    # so if you use this address, make sure there is only one pzem device connected
-    # to the uart bus.
-    # address: 0xF8
-#    modbus_id: modbus_pzem
-#    command_throttle: 0ms
-#    setup_priority: -10
-#    offline_skip_updates: 100
-#    update_interval: ${pzem_update_interval}
-
-
-button:
-  - platform: jk_bms_ble
-    retrieve_settings:
-      name: "${jk_name} retrieve settings"
-    retrieve_device_info:
-      name: "${jk_name} retrieve device info"
-
-
-switch:
-  - platform: jk_bms_ble
-    charging:
-      name: "${jk_name} charging"
-    discharging:
-      name: "${jk_name} discharging"
-    balancer:
-      name: "${jk_name} balancer"
-    emergency:
-      name: "${jk_name} emergency"
-    heating:
-      name: "${jk_name} heating"
-    disable_temperature_sensors:
-      name: "${jk_name} disable temperature sensors"
-    display_always_on:
-      name: "${jk_name} display always on"
-    smart_sleep:
-      name: "${jk_name} smart sleep"
-    disable_pcl_module:
-      name: "${jk_name} disable pcl module"
-    timed_stored_data:
-      name: "${jk_name} timed stored data"
-    charging_float_mode:
-      name: "${jk_name} charging float mode"
-
-  - platform: ble_client
-    ble_client_id: client0
-    name: "${jk_name} enable bluetooth connection"
-    id: ble_client_switch0
 
 
 number:
-  - platform: jk_bms_ble
-    jk_bms_ble_id: bms0
-    balance_trigger_voltage:
-      name: "${jk_name} balance trigger voltage"
-    cell_count:
-      name: "${jk_name} cell count"
-    total_battery_capacity:
-      name: "${jk_name} total battery capacity"
-    cell_voltage_overvoltage_protection:
-      name: "${jk_name} cell voltage overvoltage protection"
-    cell_voltage_overvoltage_recovery:
-      name: "${jk_name} cell voltage overvoltage recovery"
-    cell_voltage_undervoltage_protection:
-      name: "${jk_name} cell voltage undervoltage protection"
-    cell_voltage_undervoltage_recovery:
-      name: "${jk_name} cell voltage undervoltage recovery"
-    balance_starting_voltage:
-      name: "${jk_name} balance starting voltage"
-    voltage_calibration:
-      name: "${jk_name} voltage calibration"
-    current_calibration:
-      name: "${jk_name} current calibration"
-    power_off_voltage:
-      name: "${jk_name} power off voltage"
-    max_balance_current:
-      name: "${jk_name} max balance current"
-    max_charge_current:
-      name: "${jk_name} max charge current"
-    max_discharge_current:
-      name: "${jk_name} max discharge current"
-    smart_sleep_voltage:
-      name: "${jk_name} smart sleep voltage"
-    cell_soc100_voltage:
-      name: "${jk_name} cell soc100 voltage"
-    cell_soc0_voltage:
-      name: "${jk_name} cell soc0 voltage"
-    cell_request_charge_voltage:
-      name: "${jk_name} cell request charge voltage"
-    cell_request_float_voltage:
-      name: "${jk_name} cell request float voltage"
-    cell_request_charge_voltage_time:
-      name: "${jk_name} cell request charge voltage time"
-    cell_request_float_voltage_time:
-      name: "${jk_name} cell request float voltage time"
-    re_bulk_soc:
-      name: "re-bulk soc"  #V19
-    charge_overcurrent_protection_delay:
-      name: "${jk_name} charge overcurrent protection delay"
-    charge_overcurrent_protection_recovery_time:
-      name: "${jk_name} charge overcurrent protection recovery time"
-    discharge_overcurrent_protection_delay:
-      name: "${jk_name} discharge overcurrent protection delay"
-    discharge_overcurrent_protection_recovery_time:
-      name: "${jk_name} discharge overcurrent protection recovery time"
-    short_circuit_protection_delay:
-      name: "${jk_name} short circuit protection delay"
-    short_circuit_protection_recovery_time:
-      name: "${jk_name} short circuit protection recovery time"
-    charge_overtemperature_protection:
-      name: "${jk_name} charge overtemperature protection"
-    charge_overtemperature_protection_recovery:
-      name: "${jk_name} charge overtemperature protection recovery"
-    discharge_overtemperature_protection:
-      name: "${jk_name} discharge overtemperature protection"
-    discharge_overtemperature_protection_recovery:
-      name: "${jk_name} discharge overtemperature protection recovery"
-    charge_undertemperature_protection:
-      name: "${jk_name} charge undertemperature protection"
-    charge_undertemperature_protection_recovery:
-      name: "${jk_name} charge undertemperature protection recovery"
-    power_tube_overtemperature_protection:
-      name: "${jk_name} power tube overtemperature protection"
-    power_tube_overtemperature_protection_recovery:
-      name: "${jk_name} power tube overtemperature protection recovery"
-    discharge_precharge_time:
-      name: "${jk_name} discharge precharge time"
-    heating_start_temperature:
-      name: "${jk_name} heating start temperature"  #V15
-    heating_stop_temperature:
-      name: "${jk_name} heating stop temperature"   #V15
-
+  
   #Menu26 - 5027  Bulk charging voltage
 
   - platform: modbus_controller
@@ -370,193 +209,6 @@ number:
       return (uint16_t)(x * 10);
 
 sensor:
-#  - platform: pzemac
-#    modbus_id: modbus_pzem
-#    voltage:
-#      name: "Grid Voltage PZEM"
-#      id: pzem_grid_voltage
-      #internal: true
-      #filters:
-      #  - &mafilter quantile:
-      #      window_size: 5
-      #      send_every: 1
-      #      send_first_at: 1
-      #      quantile: .9
-      #  - offset: ${pzem_voltage_offset}
- #   current:
- #     name: "Grid Current PZEM"
- #     id: pzem_grid_current
-      #filters:
-      #  - *mafilter
-      #  - offset: ${pzem_current_offset}
- #   power:
- #     name: "Grid Power PZEM"
- #     id: pzem_grid_power
-      #filters:
-      #  - *mafilter
- #   power_factor:
- #     name: "Grid Power Factor PZEM"
- #     id: pzem_grid_power_factor
-      #filters:
-      #  - *mafilter
- #   energy:
- #     name: "Grid Energy PZEM"
- #     id: pzem_grid_energy
-      #filters:
-      #  - *mafilter
-
- # - platform: template
- #   name: "Grid Power VA PZEM"
- #   unit_of_measurement: "W"
- #   device_class: power
- #   state_class: measurement
- #   accuracy_decimals: 0
- #   update_interval: ${pzem_update_interval}
- #   lambda: |-
- #     return id(pzem_grid_current).state * id(pzem_grid_voltage).state;
-
- # - platform: template
- #   name: "Grid Power VA*PF PZEM"
- #   unit_of_measurement: "W"
- #   device_class: power
- #   state_class: measurement
- #   accuracy_decimals: 0
- #   update_interval: ${pzem_update_interval}
- #   lambda: |-
- #     return id(pzem_grid_current).state * id(pzem_grid_voltage).state * id(pzem_grid_power_factor).state;
-
-  - platform: jk_bms_ble
-    jk_bms_ble_id: bms0
-    min_cell_voltage:
-      name: "${jk_name} min cell voltage"
-    max_cell_voltage:
-      name: "${jk_name} max cell voltage"
-    min_voltage_cell:
-      name: "${jk_name} min voltage cell"
-    max_voltage_cell:
-      name: "${jk_name} max voltage cell"
-    delta_cell_voltage:
-      name: "${jk_name} delta cell voltage"
-    average_cell_voltage:
-      name: "${jk_name} average cell voltage"
-    cell_voltage_1:
-      name: "${jk_name} cell voltage 1"
-    cell_voltage_2:
-      name: "${jk_name} cell voltage 2"
-    cell_voltage_3:
-      name: "${jk_name} cell voltage 3"
-    cell_voltage_4:
-      name: "${jk_name} cell voltage 4"
-    cell_voltage_5:
-      name: "${jk_name} cell voltage 5"
-    cell_voltage_6:
-      name: "${jk_name} cell voltage 6"
-    cell_voltage_7:
-      name: "${jk_name} cell voltage 7"
-    cell_voltage_8:
-      name: "${jk_name} cell voltage 8"
-    cell_voltage_9:
-      name: "${jk_name} cell voltage 9"
-    cell_voltage_10:
-      name: "${jk_name} cell voltage 10"
-    cell_voltage_11:
-      name: "${jk_name} cell voltage 11"
-    cell_voltage_12:
-      name: "${jk_name} cell voltage 12"
-    cell_voltage_13:
-      name: "${jk_name} cell voltage 13"
-    cell_voltage_14:
-      name: "${jk_name} cell voltage 14"
-    cell_voltage_15:
-      name: "${jk_name} cell voltage 15"
-    cell_voltage_16:
-      name: "${jk_name} cell voltage 16"
-    cell_resistance_1:
-      name: "${jk_name} cell resistance 1"
-    cell_resistance_2:
-      name: "${jk_name} cell resistance 2"
-    cell_resistance_3:
-      name: "${jk_name} cell resistance 3"
-    cell_resistance_4:
-      name: "${jk_name} cell resistance 4"
-    cell_resistance_5:
-      name: "${jk_name} cell resistance 5"
-    cell_resistance_6:
-      name: "${jk_name} cell resistance 6"
-    cell_resistance_7:
-      name: "${jk_name} cell resistance 7"
-    cell_resistance_8:
-      name: "${jk_name} cell resistance 8"
-    cell_resistance_9:
-      name: "${jk_name} cell resistance 9"
-    cell_resistance_10:
-      name: "${jk_name} cell resistance 10"
-    cell_resistance_11:
-      name: "${jk_name} cell resistance 11"
-    cell_resistance_12:
-      name: "${jk_name} cell resistance 12"
-    cell_resistance_13:
-      name: "${jk_name} cell resistance 13"
-    cell_resistance_14:
-      name: "${jk_name} cell resistance 14"
-    cell_resistance_15:
-      name: "${jk_name} cell resistance 15"
-    cell_resistance_16:
-      name: "${jk_name} cell resistance 16"
-    
-  - platform: jk_bms_ble
-    jk_bms_ble_id: bms0  
-    total_voltage:
-      name: "${jk_name} total voltage"
-    current:
-      name: "${jk_name} current"
-    heating_current:
-      name: "${jk_name} heating current"
-    power:
-      name: "${jk_name} power"
-    charging_power:
-      name: "${jk_name} charging power"
-    discharging_power:
-      name: "${jk_name} discharging power"
-    temperature_sensor_1:
-      name: "${jk_name} temperature sensor 1"
-    temperature_sensor_2:
-      name: "${jk_name} temperature sensor 2"
-    temperature_sensor_3:
-      name: "${jk_name} temperature sensor 3"
-    temperature_sensor_4:
-      name: "${jk_name} temperature sensor 4"
-    temperature_sensor_5:
-      name: "${jk_name} temperature sensor 5"
-    power_tube_temperature:
-      name: "${jk_name} power tube temperature"
-    balancing:
-      name: "${jk_name} balancing"
-    state_of_charge:
-      name: "${jk_name} state of charge"
-    state_of_health:
-      name: "${jk_name} state of health"
-    capacity_remaining:
-      name: "${jk_name} capacity remaining"
-    total_battery_capacity_setting:
-      name: "${jk_name} total battery capacity setting"
-    charging_cycles:
-      name: "${jk_name} charging cycles"
-    total_charging_cycle_capacity:
-      name: "${jk_name} total charging cycle capacity"
-    total_runtime:
-      name: "${jk_name} total runtime"
-    balancing_current:
-      name: "${jk_name} balancing current"
-    errors_bitmask:
-      name: "${jk_name} errors bitmask"
-    emergency_time_countdown:
-      name: "${jk_name} emergency time countdown"
-    charge_status_id:
-      name: "${jk_name} charge status id"
-    charge_status_time_elapsed:
-      name: "${jk_name} charge status time elapsed"
-
 
   ###################################
   # Read first group (14 registers) #
@@ -567,7 +219,7 @@ sensor:
     name: "${inverter_name} Grid Voltage"
     address: 4502
     register_type: holding
-    register_count: 14
+    #register_count: 14
     #force_new_range: true
     value_type: U_WORD
     unit_of_measurement: "V"
@@ -846,7 +498,7 @@ sensor:
     name: "${inverter_name} Unknown4516"
     address: 4516
     skip_updates: ${read_skip_updates}
-    register_count: 20
+    #register_count: 20
     #force_new_range: true
     register_type: holding
     value_type: U_WORD
@@ -1123,8 +775,8 @@ sensor:
     modbus_controller_id: smg_inverter
     name: "${inverter_name} Charger Source Priority"
     address: 4536
-    force_new_range: true
-    register_count: 22
+    #force_new_range: true
+    #register_count: 22
     register_type: holding
     value_type: U_WORD
   #  unit_of_measurement: "%"
@@ -1404,22 +1056,7 @@ sensor:
       return swapBytes(x);
       
 binary_sensor:
-  - platform: jk_bms_ble
-    balancing:
-      name: "${jk_name} balancing"
-    charging:
-      name: "${jk_name} charging"
-    discharging:
-      name: "${jk_name} discharging"
-    heating:
-      name: "${jk_name} heating"
-    online_status:
-      name: "${jk_name} online status"
-    dry_contact_1:
-      name: "${jk_name} dry contact 1"
-    dry_contact_2:
-      name: "${jk_name} dry contact 2"
-
+  
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
     name: "${inverter_name} Record Fault Code"
@@ -1575,17 +1212,6 @@ text_sensor:
         default: return std::string("Unknown");
       }
 
-  - platform: jk_bms_ble
-    errors:
-      name: "${jk_name} errors"
-    total_runtime_formatted:
-      name: "${jk_name} total runtime formatted"
-    charge_status:
-      name: "${jk_name} charge status"
-    software_version:
-      name: "${jk_name} software version"
-    hardware_version:
-      name: "${jk_name} hardware version"
 
   # ####################################
   # # Read config registers one by one #
