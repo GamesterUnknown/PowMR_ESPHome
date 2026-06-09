@@ -11,24 +11,24 @@ substitutions:
 #  pzem_rx_pin: GPIO3
 #  pzem_voltage_offset: "0"
 #  pzem_current_offset: "0"
-  update_interval: 10s # Minimum 10s recommended to avoid duplicate command errors
+  update_interval: 2s # Minimum 10s recommended to avoid duplicate command errors
   select_skip_updates: "6"
   read_skip_updates: "6"
  # pzem_update_interval: 10s # Needs to be 1/5 of update interval because of smoothing filter on pzem readings
 
   jk_name: BMS
-  external_components_source: github://syssi/esphome-jk-bms@main
-  mac_address: AA:BB:CC:DD:EE:FF
+  external_components_source: https://github.com/syssi/esphome-jk-bms
   # Please use "JK02_24S" if you own a old JK-BMS < hardware version 11.0 (hardware version >= 6.0 and < 11.0)
   # Please use "JK02_32S" if you own a new JK-BMS >= hardware version 11.0 (f.e. JK-B2A8S20P hw 11.XW, sw 11.26)
   # Please use "JK04" if you have some old JK-BMS <= hardware version 3.0 (f.e. JK-B2A16S hw 3.0, sw. 3.3.0)
   protocol_version: JK02_32S
 
-
 external_components:
-  - source: ${external_components_source}
+  - source:
+      type: git
+      url: ${external_components_source}
+      ref: main
     refresh: 0s
-
 
 esphome: 
   name: "${device_name}"
@@ -38,7 +38,7 @@ esphome:
     - "helpers"
   project:
     name: "esphome.powmr-hybrid-inverter"
-    version: 1.3.5
+    version: 1.4.0
 
 esp32:
   board: esp32dev
@@ -73,6 +73,7 @@ packages:
   # You can replace next 2 lines with your common configs for all devices
  # common_system: !include includes/common_system.yaml
   common_sensors: !include includes/common_sensors.yaml
+ # jk_bms_v19: github://syssi/esphome-jk-bms/esp32-ble-v19-example.yaml@main
 
 
 #For debug:
@@ -87,10 +88,17 @@ packages:
 logger:
   id: uart_logger
   baud_rate: 0
-  level: DEBUG #VERBOSE
+  level: DEBUG
   logs:
     esp32_ble_tracker: INFO
     esp32_ble_client: INFO
+    jk_bms_ble: INFO
+    sensor: INFO
+    text_sensor: INFO
+    binary_sensor: INFO
+    number: INFO
+    modbus_controller: DEBUG
+    uart: DEBUG
   # logs:
   #   component: ERROR # Fix for issue #4717 "Component xxxxxx took a long time for an operation"
 
@@ -111,7 +119,7 @@ esp32_ble_tracker:
     active: false
 
 ble_client:
-  - mac_address: ${mac_address}
+  - mac_address: !secret bms_mac_address
     id: client0
 
 jk_bms_ble:
@@ -262,6 +270,8 @@ number:
       name: "${jk_name} cell request charge voltage time"
     cell_request_float_voltage_time:
       name: "${jk_name} cell request float voltage time"
+    re_bulk_soc:
+      name: "re-bulk soc"  #V19
     charge_overcurrent_protection_delay:
       name: "${jk_name} charge overcurrent protection delay"
     charge_overcurrent_protection_recovery_time:
@@ -293,9 +303,71 @@ number:
     discharge_precharge_time:
       name: "${jk_name} discharge precharge time"
     heating_start_temperature:
-      name: "${jk_name} heating start temperature"
+      name: "${jk_name} heating start temperature"  #V15
     heating_stop_temperature:
-      name: "${jk_name} heating stop temperature"
+      name: "${jk_name} heating stop temperature"   #V15
+
+  #Menu26 - 5027  Bulk charging voltage
+
+  - platform: modbus_controller
+    modbus_controller_id: smg_inverter
+    name: "${inverter_name} Menu 26: Bulk Charging Voltage"
+    address: 5027
+    register_type: holding
+    force_new_range: true
+    skip_updates: ${select_skip_updates}
+    value_type: U_WORD
+    unit_of_measurement: "V"
+    entity_category: config
+    min_value: 48
+    max_value: 61
+    step: 0.1
+    mode: box
+    lambda: |-
+      return x / 10.0;
+    write_lambda: |-
+      return (uint16_t)(x * 10);
+
+  #Menu27 - 5028 Floating charging voltage
+  
+  - platform: modbus_controller
+    modbus_controller_id: smg_inverter
+    name: "${inverter_name} Menu 27: Floating Charging Voltage"
+    address: 5028
+    register_type: holding
+    force_new_range: true
+    skip_updates: ${select_skip_updates}
+    value_type: U_WORD
+    unit_of_measurement: "V"
+    entity_category: config
+    min_value: 48
+    max_value: 61
+    step: 0.1
+    mode: box
+    lambda: |-
+      return x / 10.0;
+    write_lambda: |-
+      return (uint16_t)(x * 10);
+
+  #Menu28 - 5029 Low DC cut-off voltage
+  - platform: modbus_controller
+    modbus_controller_id: smg_inverter
+    name: "${inverter_name} Menu 28: Low DC Cut-off Voltage"
+    address: 5029
+    register_type: holding
+    force_new_range: true
+    skip_updates: ${select_skip_updates}
+    value_type: U_WORD
+    unit_of_measurement: "V"
+    entity_category: config
+    min_value: 40
+    max_value: 48
+    step: 0.1
+    mode: box
+    lambda: |-
+      return x / 10.0;
+    write_lambda: |-
+      return (uint16_t)(x * 10);
 
 sensor:
 #  - platform: pzemac
@@ -431,6 +503,9 @@ sensor:
       name: "${jk_name} cell resistance 15"
     cell_resistance_16:
       name: "${jk_name} cell resistance 16"
+    
+  - platform: jk_bms_ble
+    jk_bms_ble_id: bms0  
     total_voltage:
       name: "${jk_name} total voltage"
     current:
@@ -493,7 +568,7 @@ sensor:
     address: 4502
     register_type: holding
     register_count: 14
-    force_new_range: true
+    #force_new_range: true
     value_type: U_WORD
     unit_of_measurement: "V"
     device_class: voltage
@@ -741,7 +816,6 @@ sensor:
     modbus_controller_id: smg_inverter
     name: "${inverter_name} Load Percent"
     address: 4514
-    register_count: 21
     register_type: holding
     value_type: U_WORD
     unit_of_measurement: "%"
@@ -772,8 +846,8 @@ sensor:
     name: "${inverter_name} Unknown4516"
     address: 4516
     skip_updates: ${read_skip_updates}
-    #register_count: 20
-    force_new_range: true
+    register_count: 20
+    #force_new_range: true
     register_type: holding
     value_type: U_WORD
   #  unit_of_measurement: "%"
@@ -786,6 +860,7 @@ sensor:
     modbus_controller_id: smg_inverter
     name: "${inverter_name} Unknown4517"
     address: 4517
+    skip_updates: ${read_skip_updates}
     register_type: holding
     value_type: U_WORD
   #  unit_of_measurement: "%"
@@ -796,8 +871,9 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
-    name: "${inverter_name} Unknown4518"
+    name: "${inverter_name} Main CPU version"
     address: 4518
+    skip_updates: ${read_skip_updates}
     register_type: holding
     value_type: U_WORD
   #  unit_of_measurement: "%"
@@ -808,8 +884,9 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
-    name: "${inverter_name} Unknown4519"
+    name: "${inverter_name} Secondary CPU version"
     address: 4519
+    skip_updates: ${read_skip_updates}
     register_type: holding
     value_type: U_WORD
   #  unit_of_measurement: "%"
@@ -822,6 +899,7 @@ sensor:
     modbus_controller_id: smg_inverter
     name: "${inverter_name} Unknown4520"
     address: 4520
+    skip_updates: ${read_skip_updates}
     register_type: holding
     value_type: U_WORD
   #  unit_of_measurement: "%"
@@ -832,96 +910,106 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
-    name: "${inverter_name} Unknown4521"
+    name: "${inverter_name} Nominal Output Apparent Power"
     address: 4521
+    skip_updates: ${read_skip_updates}
     register_type: holding
     value_type: U_WORD
-  #  unit_of_measurement: "%"
-    device_class: power_factor
+    unit_of_measurement: "VA"
+    device_class: apparent_power
     state_class: measurement
     lambda: |-
       return swapBytes(x);
 
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
-    name: "${inverter_name} Unknown4522"
+    name: "${inverter_name} Nominal Output Active Power"
     address: 4522
+    skip_updates: ${read_skip_updates}
     register_type: holding
     value_type: U_WORD
-  #  unit_of_measurement: "%"
-    device_class: power_factor
+    unit_of_measurement: "W"
+    device_class: power
     state_class: measurement
     lambda: |-
       return swapBytes(x);
 
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
-    name: "${inverter_name} Unknown4523"
+    name: "${inverter_name} Nominal Grid Voltage"
     address: 4523
+    skip_updates: ${read_skip_updates}
     register_type: holding
     value_type: U_WORD
-  #  unit_of_measurement: "%"
-    device_class: power_factor
+    unit_of_measurement: "V"
+    device_class: voltage
     state_class: measurement
     lambda: |-
       return swapBytes(x);
 
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
-    name: "${inverter_name} Unknown4524"
+    name: "${inverter_name} Nominal Grid Current"
     address: 4524
+    skip_updates: ${read_skip_updates}
     register_type: holding
     value_type: U_WORD
-  #  unit_of_measurement: "%"
-    device_class: power_factor
+    unit_of_measurement: "A"
+    device_class: current
     state_class: measurement
     lambda: |-
       return swapBytes(x);
 
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
-    name: "${inverter_name} Unknown4525"
+    name: "${inverter_name} Rated Battery Voltage"
     address: 4525
+    skip_updates: ${read_skip_updates}
     register_type: holding
     value_type: U_WORD
-  #  unit_of_measurement: "%"
-    device_class: power_factor
+    unit_of_measurement: "V"
+    device_class: voltage
     state_class: measurement
     lambda: |-
       return swapBytes(x);
+    filters:
+      - multiply: 0.1
 
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
-    name: "${inverter_name} Unknown4526"
+    name: "${inverter_name} Nominal Output Voltage"
     address: 4526
+    skip_updates: ${read_skip_updates}
     register_type: holding
     value_type: U_WORD
-  #  unit_of_measurement: "%"
-    device_class: power_factor
+    unit_of_measurement: "V"
+    device_class: voltage
     state_class: measurement
     lambda: |-
       return swapBytes(x);
 
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
-    name: "${inverter_name} Unknown4527"
+    name: "${inverter_name} Nominal Output Frequency"
     address: 4527
+    skip_updates: ${read_skip_updates}
     register_type: holding
     value_type: U_WORD
-  #  unit_of_measurement: "%"
-    device_class: power_factor
+    unit_of_measurement: "Hz"
+    device_class: frequency
     state_class: measurement
     lambda: |-
       return swapBytes(x);
 
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
-    name: "${inverter_name} Unknown4528"
+    name: "${inverter_name} Nominal Output Current"
     address: 4528
+    skip_updates: ${read_skip_updates}
     register_type: holding
     value_type: U_WORD
-  #  unit_of_measurement: "%"
-    device_class: power_factor
+    unit_of_measurement: "A"
+    device_class: current
     state_class: measurement
     lambda: |-
       return swapBytes(x);
@@ -930,6 +1018,7 @@ sensor:
     modbus_controller_id: smg_inverter
     name: "${inverter_name} Unknown4529"
     address: 4529
+    skip_updates: ${read_skip_updates}
     register_type: holding
     value_type: U_WORD
   #  unit_of_measurement: "%"
@@ -942,6 +1031,7 @@ sensor:
     modbus_controller_id: smg_inverter
     name: "${inverter_name} Unknown4530"
     address: 4530
+    skip_updates: ${read_skip_updates}
     register_type: holding
     value_type: U_WORD
   #  unit_of_measurement: "%"
@@ -954,6 +1044,7 @@ sensor:
     modbus_controller_id: smg_inverter
     name: "${inverter_name} Unknown4531"
     address: 4531
+    skip_updates: ${read_skip_updates}
     register_type: holding
     value_type: U_WORD
   #  unit_of_measurement: "%"
@@ -966,6 +1057,7 @@ sensor:
     modbus_controller_id: smg_inverter
     name: "${inverter_name} Unknown4532"
     address: 4532
+    skip_updates: ${read_skip_updates}
     register_type: holding
     value_type: U_WORD
   #  unit_of_measurement: "%"
@@ -978,6 +1070,7 @@ sensor:
     modbus_controller_id: smg_inverter
     name: "${inverter_name} Unknown4533"
     address: 4533
+    skip_updates: ${read_skip_updates}
     register_type: holding
     value_type: U_WORD
   #  unit_of_measurement: "%"
@@ -991,6 +1084,7 @@ sensor:
     modbus_controller_id: smg_inverter
     name: "${inverter_name} Unknown4534"
     address: 4534
+    skip_updates: ${read_skip_updates}
     register_type: holding
     value_type: U_WORD
   #  unit_of_measurement: "%"
@@ -1003,6 +1097,7 @@ sensor:
     modbus_controller_id: smg_inverter
     name: "${inverter_name} Unknown4535"
     address: 4535
+    skip_updates: ${read_skip_updates}
     register_type: holding
     value_type: U_WORD
   #  unit_of_measurement: "%"
@@ -1028,8 +1123,8 @@ sensor:
     modbus_controller_id: smg_inverter
     name: "${inverter_name} Charger Source Priority"
     address: 4536
-  #  force_new_range: true
-  #  register_count: 22
+    force_new_range: true
+    register_count: 22
     register_type: holding
     value_type: U_WORD
   #  unit_of_measurement: "%"
@@ -1083,6 +1178,7 @@ sensor:
     address: 4540
     register_type: holding
     value_type: U_WORD
+    device_class: frequency
     unit_of_measurement: "Hz"
     lambda: |-
       uint16_t value = swapBytes(x);
@@ -1272,16 +1368,16 @@ sensor:
     lambda: |-
       return swapBytes(x);
 
-  - platform: modbus_controller
-    modbus_controller_id: smg_inverter
-    name: "${inverter_name} Charger Status"
-    accuracy_decimals: 0
-    entity_category: diagnostic
-    address: 4555
-    register_type: holding
-    value_type: U_WORD
-    lambda: |-
-      return swapBytes(x);
+#  - platform: modbus_controller
+#    modbus_controller_id: smg_inverter
+#    name: "${inverter_name} Charger Status"
+#    accuracy_decimals: 0
+#    entity_category: diagnostic
+#    address: 4555
+#    register_type: holding
+#    value_type: U_WORD
+#    lambda: |-
+#      return swapBytes(x);
 
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
@@ -1448,7 +1544,7 @@ binary_sensor:
 
   - platform: modbus_controller
     modbus_controller_id: smg_inverter
-    name: "${inverter_name} Grid Active 4554 0x100"
+    name: "${inverter_name} Grid Not Active"
     id: grid_active2
     address: 4554
     register_type: holding
@@ -1463,6 +1559,22 @@ binary_sensor:
     bitmask: 0x8000
 
 text_sensor:
+  - platform: modbus_controller
+    modbus_controller_id: smg_inverter
+    name: "${inverter_name} Charger Status"
+    entity_category: diagnostic
+    address: 4555
+    register_type: holding
+    raw_encode: HEXBYTES
+    lambda: |-
+      uint16_t value = swapBytes(x);
+      switch (value) {
+        case 0: return std::string("Off");
+        case 1: return std::string("Idle");
+        case 2: return std::string("Active");
+        default: return std::string("Unknown");
+      }
+
   - platform: jk_bms_ble
     errors:
       name: "${jk_name} errors"
@@ -1567,10 +1679,10 @@ select:
     address: 5017
     value_type: U_WORD
     optionsmap:
-      "Utility first": 0
-      "Solar first": 1
-      "Solar and Utility": 2
-      "Only Solar": 3
+    #  "Utility first": 0
+      "Solar first": 0
+      "Solar and Utility": 1
+      "Only Solar": 2
       
 #Menu1 -5018
   - platform: modbus_controller
@@ -1585,9 +1697,9 @@ select:
     address: 5018
     value_type: U_WORD
     optionsmap:
-      "Utility first (USB)": 0
-      "Solar first (SUB)": 1
-      "SBU priority": 2
+      "USB": 0
+      "SUB": 1
+      "SBU": 2
 
 
 #Menu3-5019
@@ -1647,6 +1759,8 @@ select:
       "60": 60
       "70": 70
       "80": 80
+      "90": 90
+      "100": 100
 
 #Menu10 -5023 Output voltage (one of 220, 230, 240)
 
@@ -1668,6 +1782,10 @@ select:
       "40": 40
       "50": 50
       "60": 60
+      "70": 70
+      "80": 80
+      "90": 90
+      "100": 100
 
 #Menu12 - 5025
   - platform: modbus_controller
@@ -1717,9 +1835,8 @@ select:
       "57": 570
       "58": 580
 
-  #Menu26 - 5027  Bulk charging voltage
-  #Menu27 - 5028 Floating charging voltage
-  #Menu28 - 5029 Low DC cut-off voltage
+  
+  
   #Menu29 - 5030 Battery equalization voltage
   #Menu33 - 5031 Battery equalized time
   #Menu34 - 5032 Battery equalized timeout

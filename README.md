@@ -1,14 +1,16 @@
 # My ESPHome PowMr Hybrid Inverter
 This is modifiyed updated version of ESPHome PowMr Hybrid Inverter(https://github.com/odya/esphome-powmr-hybrid-inverter).
 
-What was changed:
-1. All sensors combined in one file. 
+What was changed/added:
+1. Added possibility to connect JK-BMS V15 or V19 via BT (https://github.com/syssi/esphome-jk-bms). You need to copy apropriative file from "include" folder to ESPHome "include" folder. 
 2. Corrected query and calculation of Power and Power Factor
-3. Optimied Modbus registers query:
-   1. 14 registers starting from 4502
-   2. 19 registers starting from 4516
-   3. 19 registers starting from 4539
-   4. config registers (starting from 5002) are read one by one in other case it will not read values.
+3. Added some registers based on info retrived via SmartESS app.
+4. Optimied Modbus registers query:
+   - 14 registers starting from 4502
+   - 19 registers starting from 4516
+   - 19 registers starting from 4539
+   - config registers (starting from 5002) are read one by one in other case it will not read values.
+
 
 Known issues:
  1. Using text_sensor instead of regular sensor lead to hang of ESP immidiatly after start. Root case unknown.
